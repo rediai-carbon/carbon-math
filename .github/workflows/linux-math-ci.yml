@@ -1,0 +1,65 @@
+name: linux-math-ci
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-math-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARBON_LINUX_IMAGES_SHA: 9e9dacbd5506df6c3ab36aa6de8a807f63ad6a90
+  M01_IMAGE_DIGEST: sha256:5b8595321ec1ddd39332dabc8b9fd051611748b1a6d32059fc8bedc81fe03c3f
+
+jobs:
+  static-regression:
+    name: static-regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Verify DISABLED_ gtest inventory
+        run: python3 scripts/ci/verify_gtest_disabled_inventory.py
+      - name: Validate CMakePresets JSON
+        run: python3 -m json.tool CMakePresets.json > /dev/null
+      - name: ctest summary parser self-test
+        run: python3 scripts/ci/test_assert_ctest_parser.py
+
+  linux-container-build:
+    name: linux-container-build
+    needs: static-regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: carbon-math
+          submodules: recursive
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: rediai-carbon/carbon-linux-images
+          ref: ${{ env.CARBON_LINUX_IMAGES_SHA }}
+          path: carbon-linux-images
+      - name: Build GCC buildenv image
+        run: |
+          docker build \
+            -f carbon-linux-images/build/gcc/Containerfile \
+            -t carbon-linux-gcc-buildenv:m06-ci \
+            carbon-linux-images/build/gcc
+      - name: Configure, build, and test (M01-equivalent lane)
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/carbon-math:/src/carbon-math:ro" \
+            -v m06_math_workspace:/m06 \
+            -e WORK_ROOT=/m06 \
+            -e SRC_ROOT=/src/carbon-math \
+            carbon-linux-gcc-buildenv:m06-ci \
+            bash /src/carbon-math/scripts/ci/m06_linux_build_test.sh
+      - name: Note reproducibility
+        run: |
+          echo "M01 reference digest ${M01_IMAGE_DIGEST}; image built from carbon-linux-images @ ${CARBON_LINUX_IMAGES_SHA}."
+          echo "INDEPENDENT_REPRODUCIBILITY_NOT_CLAIMED from a single CI run."
