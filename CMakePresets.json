@@ -270,6 +270,28 @@
         "VCPKG_TARGET_TRIPLET": "x64-linux-debug",
         "VCPKG_HOST_TRIPLET": "x64-linux-debug"
       }
+    },
+    {
+      "name": "x64-linux-release-out-of-tree",
+      "displayName": "x64 Linux Release (out-of-tree via CARBON_MATH_BINARY_DIR)",
+      "description": "Out-of-source configure: set CARBON_MATH_BINARY_DIR to a writable absolute path before cmake --preset.",
+      "inherits": "x64-linux-release",
+      "binaryDir": "$env{CARBON_MATH_BINARY_DIR}"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "x64-linux-release-out-of-tree",
+      "configurePreset": "x64-linux-release-out-of-tree"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "x64-linux-release-out-of-tree",
+      "configurePreset": "x64-linux-release-out-of-tree",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
